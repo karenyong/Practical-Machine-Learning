@@ -80,7 +80,7 @@ levels(testing$cvtd_timestamp) <- levels(training$cvtd_timestamp)
 dim(testing)
 ```
 
-###Cross Validation and Partition of training dataset 
+###Partition of training dataset 
 ```{r}
 #Partition training set into 2 (60% training, 40% testing)
 inTrain <- createDataPartition(y=training$classe, p=0.6, list=F)
@@ -91,6 +91,7 @@ dim(testing_part)
 ```
 
 #Prediction Models
+For each model, predictions are made against the cross-validation ("testing_part") dataset. A confusion matrix is then used to understand prediction accuracy.
 
 ###Random Forest
 
