@@ -1,0 +1,136 @@
+---
+title: "Weight Lifting Exercise Classification"
+author: "Karen Yong"
+date: "19 December 2015"
+output: html_document
+---
+
+#Background
+Using devices such as *Jawbone Up, Nike FuelBand, and Fitbit* it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify *how much* of a particular activity they do, but they rarely quantify *how well* they do it. In this project, our goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways: exactly according to the specification (Class A), throwing the elbows to the front (Class B), lifting the dumbbell only halfway (Class C), lowering the dumbbell only halfway (Class D) and throwing the hips to the front (Class E).
+
+More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset). 
+
+The goal of this project is to predict the manner in which they did the exercise. This is the “classe” variable in the training set. A report is to be created describing how we built our model, how we used cross validation, what we think the expected out of sample error is, and why we made the choices we did. To obtain these results, we can use any of the other variables to predict with and should use the prediction model to predict 20 different test cases.
+
+#Data Processing
+The training data for this project are available here: 
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here: 
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har.
+
+###Download Data
+```{r message=F, results='hide'}
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(RColorBrewer)
+library(RGtk2)
+library(rattle)
+library(randomForest)
+
+set.seed(12345)
+
+#Get data from URLs
+trainUrl <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+testUrl <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+
+#Store datasets in memory
+training_raw <- read.csv(url(trainUrl), na.strings=c("NA","#DIV/0!",""))
+testing_raw <- read.csv(url(testUrl), na.strings=c("NA","#DIV/0!",""))
+```
+
+###Summary of Data
+```{r}
+dim(training_raw)
+summary(training_raw$classe)
+```
+
+###Clean Data
+The training dataset contained 19622 observations and 160 variables. A number of these variables contained missing data (often with only 1 row of data) and predictors that have zero variances.
+
+Tranformation 1: First, we identify and remove variables with near zero variances.
+
+```{r}
+#Get variables with near zero variances in training dataset
+nzv_train <- nearZeroVar(training_raw, saveMetrics = TRUE)
+
+#Store variables that are not near zero variances
+training <- training_raw[,nzv_train$nzv==FALSE]
+```
+
+Transformation 2: Remove the first column of the dataset as that is not required
+```{r}
+training <- training[c(-1)]
+```
+
+Transformation 3: Remove variables with missing values
+```{r}
+miss_value <- sapply(training, function(x) {sum(is.na(x))})
+training <- training[,which(miss_value == 0)]
+dim(training)
+```
+
+Transformation 4: Align Levels of Factor Variables in Training and Testing Sets
+```{r}
+testing <- testing_raw[colnames(training[,-58])]
+levels(testing$cvtd_timestamp) <- levels(training$cvtd_timestamp)
+dim(testing)
+```
+
+###Cross Validation and Partition of training dataset 
+```{r}
+#Partition training set into 2 (60% training, 40% testing)
+inTrain <- createDataPartition(y=training$classe, p=0.6, list=F)
+training_part <- training[inTrain, ]
+testing_part <- training[-inTrain, ]
+dim(training_part)
+dim(testing_part)
+```
+
+#Prediction Models
+
+###Random Forest
+
+```{r fig.height=4, fig.width=4}
+set.seed(12345)
+modelFit_rf <- randomForest(classe ~., data=training_part)
+plot(modelFit_rf)
+predict_rf <- predict(modelFit_rf, testing_part, type = "class")
+cm_rf <- confusionMatrix(predict_rf, testing_part$classe)
+cm_rf
+```
+
+###Decision Tree
+
+```{r}
+modelFit_dt <- rpart(classe ~., data=training_part, method="class")
+fancyRpartPlot(modelFit_dt)
+predict_dt <- predict(modelFit_dt, testing_part, type = "class")
+cm_dt <- confusionMatrix(predict_dt, testing_part$classe)
+cm_dt
+
+```
+
+#Predicting Results on Test Data
+We will use the Random Forest algorithm on our testing dataset as it had a higher accuracy rate of 99.89% compared to Decision Tree at 87.89%. The expected out-of-sample error is 100 - 99.89 = 0.11%.
+
+```{r}
+predict_final <- predict(modelFit_rf, testing)
+predict_final
+```
+
+#Submission to Coursera
+```{r}
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+pml_write_files(predict_final)
+
+```
